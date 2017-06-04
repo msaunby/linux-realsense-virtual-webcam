@@ -1,11 +1,4 @@
-/* License: Apache 2.0. See LICENSE file in root directory.
-   Copyright(c) 2015 Intel Corporation. All Rights Reserved. */
 
-/***************************************************\
-* librealsense tutorial #3 - Point cloud generation *
-\***************************************************/
-
-/* First include the librealsense C header file */
 #include <librealsense/rs.h>
 #include <linux/videodev2.h>
 #include <gst/gst.h>
@@ -46,49 +39,6 @@ static void on_cursor_pos(GLFWwindow * win, double x, double y)
     lastY = y;
 }
 
-#define ROUND_UP_2(num)  (((num)+1)&~1)
-#define ROUND_UP_4(num)  (((num)+3)&~3)
-#define ROUND_UP_8(num)  (((num)+7)&~7)
-#define ROUND_UP_16(num) (((num)+15)&~15)
-#define ROUND_UP_32(num) (((num)+31)&~31)
-#define ROUND_UP_64(num) (((num)+63)&~63)
-
-#define VIDEO_DEVICE "/dev/video4"
-
-# define FRAME_WIDTH  640
-# define FRAME_HEIGHT 480
-
-//# define FRAME_FORMAT V4L2_PIX_FMT_YUYV
-# define FRAME_FORMAT V4L2_PIX_FMT_RGB32
-
-static int debug=0;
-
-int format_properties(const unsigned int format,
-		const unsigned int width,
-		const unsigned int height,
-		size_t*linewidth, size_t*framewidth)
-		{
-    size_t lw, fw;
-		lw = (ROUND_UP_2 (width) * 2);
-		fw = lw * height;
-
-	  if(linewidth)*linewidth=lw;
-	  if(framewidth)*framewidth=fw;
-
-	  return 1;
-}
-
-void print_format(struct v4l2_format*vid_format) {
-  printf("	vid_format->type                =%d\n",	vid_format->type );
-  printf("	vid_format->fmt.pix.width       =%d\n",	vid_format->fmt.pix.width );
-  printf("	vid_format->fmt.pix.height      =%d\n",	vid_format->fmt.pix.height );
-  printf("	vid_format->fmt.pix.pixelformat =%d\n",	vid_format->fmt.pix.pixelformat);
-  printf("	vid_format->fmt.pix.sizeimage   =%d\n",	vid_format->fmt.pix.sizeimage );
-  printf("	vid_format->fmt.pix.field       =%d\n",	vid_format->fmt.pix.field );
-  printf("	vid_format->fmt.pix.bytesperline=%d\n",	vid_format->fmt.pix.bytesperline );
-  printf("	vid_format->fmt.pix.colorspace  =%d\n",	vid_format->fmt.pix.colorspace );
-}
-
 /* Function calls to librealsense may raise errors of type rs_error */
 rs_error * e = 0;
 void check_error()
@@ -103,12 +53,7 @@ void check_error()
 
 int want = 1;
 
-uint16_t b_white[640*480];
-uint16_t b_black[640*480];
-
 static void prepare_buffer(GstAppSrc* appsrc, char *pixels) {
-
-  static gboolean white = FALSE;
   static GstClockTime timestamp = 0;
   GstBuffer *buffer;
   guint size;
@@ -119,10 +64,7 @@ static void prepare_buffer(GstAppSrc* appsrc, char *pixels) {
 
   size = 640 * 480 * 2;
 
-  //buffer = gst_buffer_new_wrapped_full( 0, (gpointer)(white?b_white:b_black), size, 0, size, NULL, NULL );
   buffer = gst_buffer_new_wrapped_full( 0, (gpointer)pixels, size, 0, size, NULL, NULL );
-
-  //white = !white;
 
   GST_BUFFER_PTS (buffer) = timestamp;
   GST_BUFFER_DURATION (buffer) = gst_util_uint64_scale_int (1, GST_SECOND, 4);
@@ -146,8 +88,6 @@ gint main(gint argc, gchar**argv)
 {
   GstElement *pipeline, *appsrc, *conv, *videosink;
 
-  for (int i = 0; i < 640*480; i++) { b_black[i] = 0; b_white[i] = 0xFFFF; }
-
   /* init GStreamer */
   gst_init (&argc, &argv);
 
@@ -162,6 +102,7 @@ gint main(gint argc, gchar**argv)
   videosink = gst_element_factory_make ("v4l2sink", "videosink");
 
   /* setup */
+  #if 1
   g_object_set (G_OBJECT (appsrc), "caps",
   		gst_caps_new_simple ("video/x-raw",
 				     "format", G_TYPE_STRING, "RGB16",
@@ -169,13 +110,26 @@ gint main(gint argc, gchar**argv)
 				     "height", G_TYPE_INT, 480,
 				     "framerate", GST_TYPE_FRACTION, 30, 1,
 				     NULL), NULL);
+#else
+g_object_set (G_OBJECT (appsrc), "caps",
+  gst_caps_new_simple ("video/x-raw-rgb",
+              "width", G_TYPE_INT, 640,
+              "height", G_TYPE_INT, 480,
+              "bpp", G_TYPE_INT, 24,
+              "depth", G_TYPE_INT, 24,
+              "red_mask",   G_TYPE_INT, 0x00ff0000,
+              "green_mask", G_TYPE_INT, 0x0000ff00,
+              "blue_mask",  G_TYPE_INT, 0x000000ff,
+              "framerate", GST_TYPE_FRACTION, 30, 1,
+              "endianness", G_TYPE_INT, G_BIG_ENDIAN,
+              NULL), NULL);
 
+// NB set glReadPixels to match.  See https://www.khronos.org/registry/OpenGL-Refpages/es2.0/xhtml/glReadPixels.xml
+#endif
 
   g_object_set (G_OBJECT (conv), "video/x-raw,format", "YUY2", NULL);
 
   g_object_set (G_OBJECT (videosink), "device", "/dev/video4", NULL);
-
-
 
   gst_bin_add_many (GST_BIN (pipeline), appsrc, conv, videosink, NULL);
   gst_element_link_many (appsrc, conv, videosink, NULL);
@@ -191,73 +145,7 @@ gint main(gint argc, gchar**argv)
   /* play */
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
 
-  // This first section relates only to v4l2loopback, no RealSense code here.
   char   *pixel_data = malloc(8*640*480);
-
-#if 0
-
-  struct v4l2_capability vid_caps;
-  struct v4l2_format vid_format;
-
-  size_t framesize;
-  size_t linewidth;
-
-  __u8*buffer;
-
-  char   *pixel_data = malloc(4*640*480);
-
-  const char*video_device=VIDEO_DEVICE;
-  int fdwr = 0;
-  int ret_code = 0;
-
-  int i;
-
-  if(argc>1) {
-    video_device=argv[1];
-    printf("using output device: %s\n", video_device);
-  }
-
-  fdwr = open(video_device, O_RDWR);
-  assert(fdwr >= 0);
-
-  ret_code = ioctl(fdwr, VIDIOC_QUERYCAP, &vid_caps);
-  assert(ret_code != -1);
-
-  memset(&vid_format, 0, sizeof(vid_format));
-
-  ret_code = ioctl(fdwr, VIDIOC_G_FMT, &vid_format);
-  if(debug)print_format(&vid_format);
-
-  vid_format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-  vid_format.fmt.pix.width = FRAME_WIDTH;
-  vid_format.fmt.pix.height = FRAME_HEIGHT;
-  vid_format.fmt.pix.pixelformat = FRAME_FORMAT;
-  vid_format.fmt.pix.sizeimage = framesize;
-  vid_format.fmt.pix.field = V4L2_FIELD_NONE;
-  vid_format.fmt.pix.bytesperline = linewidth;
-  vid_format.fmt.pix.colorspace = V4L2_COLORSPACE_SRGB;
-
-  if(debug)print_format(&vid_format);
-  ret_code = ioctl(fdwr, VIDIOC_S_FMT, &vid_format);
-
-  assert(ret_code != -1);
-
-  if(debug)printf("frame: format=%d\tsize=%d\n", FRAME_FORMAT, framesize);
-  print_format(&vid_format);
-
-  if(!format_properties(vid_format.fmt.pix.pixelformat,
-                        vid_format.fmt.pix.width, vid_format.fmt.pix.height,
-                        &linewidth,
-                        &framesize)) {
-    printf("unable to guess correct settings for format '%d'\n", FRAME_FORMAT);
-  }
-  buffer=(__u8*)malloc(sizeof(__u8)*framesize);
-
-  memset(buffer, 127, framesize);
-
-  write(fdwr, buffer, framesize);
-
-#endif
 
   // Now the RealSense code.
 
@@ -379,13 +267,10 @@ gint main(gint argc, gchar**argv)
         }
         glEnd();
         glReadBuffer(GL_FRONT);
-        // GL_RGB, GL_UNSIGNED_BYTE
         glReadPixels(0, 0, 640, 480, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, pixel_data);
+        //glReadPixels(0, 0, 640, 480, GL_RGB, GL_UNSIGNED_BYTE, pixel_data);
         prepare_buffer((GstAppSrc*)appsrc, pixel_data);
         g_main_context_iteration(g_main_context_default(),FALSE);
-        //glReadBuffer(GL_FRONT);
-        //glReadPixels(0, 0, 640, 480, GL_RGBA, GL_UNSIGNED_BYTE, pixel_data);
-        //write(fdwr, pixel_data, framesize);
 
 
         glfwSwapBuffers(win);
