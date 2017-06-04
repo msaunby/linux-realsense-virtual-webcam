@@ -26,6 +26,17 @@ endif()
 find_package(OpenGL REQUIRED)
 set(DEPENDENCIES realsense ${OPENGL_LIBRARIES})
 
+find_package(PkgConfig)
+
+pkg_check_modules(GSTREAMER gstreamer-1.0)
+
+link_directories(
+   ${GSTREAMER_LIBRARY_DIRS}
+)
+include_directories(
+   ${GSTREAMER_INCLUDE_DIRS}
+)
+
 if(WIN32)
     add_subdirectory(third_party/glfw)
     list(APPEND DEPENDENCIES glfw3)
@@ -50,7 +61,26 @@ else()
                   /usr/local/lib/${CMAKE_LIBRARY_ARCHITECTURE}
                   /usr/X11R6/lib
     )
-    list(APPEND DEPENDENCIES m ${GLFW_LIBRARIES} ${LIBUSB1_LIBRARIES})
+    list(APPEND DEPENDENCIES m  ${GLFW_LIBRARIES} ${LIBUSB1_LIBRARIES})
+    # Find gstapp-1.0 library
+    find_library(GSTAPP_LIBRARY NAMES gstapp-1.0
+            PATHS /usr/lib/x86_64-linux-gnu
+                  /usr/lib64
+                  /usr/lib
+                  /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}
+                  /usr/local/lib64
+                  /usr/local/lib
+                  /usr/local/lib/${CMAKE_LIBRARY_ARCHITECTURE}
+                  /usr/X11R6/lib
+    )
+    # gstreamer-1.0 gobject-2.0 glib-2.0
+    find_library(GST_LIBRARY NAMES gstreamer-1.0
+    )
+    find_library(GOBJ_LIBRARY NAMES gobject-2.0
+    )
+    find_library(GLIB_LIBRARY NAMES glib-2.0
+    )
+    list(APPEND DEPENDENCIES m ${GST_LIBRARY} ${GOBJ_LIBRARY} ${GLIB_LIBRARY} ${GSTAPP_LIBRARY} )
     include_directories(${GLFW_INCLUDE_DIR})
 endif()
 
@@ -59,10 +89,14 @@ endif()
 add_executable(colorcam colorcam.c)
 target_link_libraries(colorcam ${DEPENDENCIES})
 
+add_executable(pointcloudcam pointcloudcam.c)
+#target_link_libraries(pointcloudcam ${DEPENDENCIES})
+target_link_libraries(pointcloudcam  ${DEPENDENCIES} ${GLFW_LIBRARIES} ${LIBUSB1_LIBRARIES} ${GST_LIBRARIES} ${GSTAPP_LIBRARY} )
 
 install(
     TARGETS
     colorcam
+    pointcloudcam
 
     RUNTIME DESTINATION
     ${CMAKE_INSTALL_BINDIR}
