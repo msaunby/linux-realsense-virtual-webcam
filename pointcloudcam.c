@@ -1,3 +1,7 @@
+//
+// To view output try
+// vlc v4l2:///dev/video9
+
 
 #include <librealsense/rs.h>
 #include <linux/videodev2.h>
@@ -62,12 +66,12 @@ static void prepare_buffer(GstAppSrc* appsrc, char *pixels) {
   if (!want) return;
   want = 0;
 
-  size = 640 * 480 * 2;
+  size = 640 * 480 * 8;
 
   buffer = gst_buffer_new_wrapped_full( 0, (gpointer)pixels, size, 0, size, NULL, NULL );
 
-  GST_BUFFER_PTS (buffer) = timestamp;
-  GST_BUFFER_DURATION (buffer) = gst_util_uint64_scale_int (1, GST_SECOND, 4);
+  //GST_BUFFER_PTS (buffer) = timestamp;
+  //GST_BUFFER_DURATION (buffer) = gst_util_uint64_scale_int (1, GST_SECOND, 4);
 
   timestamp += GST_BUFFER_DURATION (buffer);
 
@@ -79,14 +83,16 @@ static void prepare_buffer(GstAppSrc* appsrc, char *pixels) {
   }
 }
 
+char *pixel_data;
+
 static void cb_need_data (GstElement *appsrc, guint unused_size, gpointer user_data) {
-  //prepare_buffer((GstAppSrc*)appsrc);
+  prepare_buffer((GstAppSrc*)appsrc, pixel_data);
   want = 1;
 }
 
 gint main(gint argc, gchar**argv)
 {
-  GstElement *pipeline, *appsrc, *conv, *videosink;
+  GstElement *pipeline, *appsrc, *conv, *flip, *tee, *videosink;
 
   /* init GStreamer */
   gst_init (&argc, &argv);
@@ -95,11 +101,14 @@ gint main(gint argc, gchar**argv)
   pipeline = gst_pipeline_new ("pipeline");
   appsrc = gst_element_factory_make ("appsrc", "source");
   conv = gst_element_factory_make ("videoconvert", "conv");
+  flip = gst_element_factory_make ("videoflip", "flip");
 
   // videoconvert ! "video/x-raw,format=YUY2" ! v4l2sink device=/dev/video1
 
-  //videosink = gst_element_factory_make ("xvimagesink", "videosink");
-  videosink = gst_element_factory_make ("v4l2sink", "videosink");
+
+  tee = gst_element_factory_make ("tee", "tee");
+  //videosink = gst_element_factory_make ("v4l2sink", "videosink");
+  videosink = gst_element_factory_make ("xvimagesink", "videosink");
 
   /* setup */
   #if 1
@@ -129,10 +138,12 @@ g_object_set (G_OBJECT (appsrc), "caps",
 
   g_object_set (G_OBJECT (conv), "video/x-raw,format", "YUY2", NULL);
 
-  g_object_set (G_OBJECT (videosink), "device", "/dev/video4", NULL);
+  g_object_set (G_OBJECT (flip), "method", "vertical-flip", NULL);
 
-  gst_bin_add_many (GST_BIN (pipeline), appsrc, conv, videosink, NULL);
-  gst_element_link_many (appsrc, conv, videosink, NULL);
+  g_object_set (G_OBJECT (videosink), "device", "/dev/video9", NULL);
+
+  gst_bin_add_many (GST_BIN (pipeline), appsrc, conv, flip, tee, videosink, NULL);
+  gst_element_link_many (appsrc, conv, flip, tee, videosink, NULL);
 
   /* setup appsrc */
   g_object_set (G_OBJECT (appsrc),
@@ -145,7 +156,7 @@ g_object_set (G_OBJECT (appsrc), "caps",
   /* play */
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
 
-  char   *pixel_data = malloc(8*640*480);
+  pixel_data = malloc(8*640*480);
 
   // Now the RealSense code.
 
@@ -268,11 +279,7 @@ g_object_set (G_OBJECT (appsrc), "caps",
         glEnd();
         glReadBuffer(GL_FRONT);
         glReadPixels(0, 0, 640, 480, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, pixel_data);
-        //glReadPixels(0, 0, 640, 480, GL_RGB, GL_UNSIGNED_BYTE, pixel_data);
-        prepare_buffer((GstAppSrc*)appsrc, pixel_data);
         g_main_context_iteration(g_main_context_default(),FALSE);
-
-
         glfwSwapBuffers(win);
     }
 
