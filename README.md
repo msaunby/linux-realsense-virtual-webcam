@@ -14,6 +14,10 @@ I'm presently using the Intel R200 camera on a Dell XPS13 running Ubuntu 16.10
  * v4l2loopback https://github.com/umlaeute/v4l2loopback
  * librealsense https://github.com/IntelRealSense/librealsense
 
+### GStreamer
+
+Use, e.g. "$ gst-inspect videoflip" shell command to see available options.
+
 ## Getting started
 
 If you haven't already, build and install the librealsense examples and check
