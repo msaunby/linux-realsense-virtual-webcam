@@ -107,8 +107,8 @@ gint main(gint argc, gchar**argv)
 
 
   tee = gst_element_factory_make ("tee", "tee");
-  //videosink = gst_element_factory_make ("v4l2sink", "videosink");
-  videosink = gst_element_factory_make ("xvimagesink", "videosink");
+  videosink = gst_element_factory_make ("v4l2sink", "videosink");
+  //videosink = gst_element_factory_make ("xvimagesink", "videosink");
 
   /* setup */
   #if 1

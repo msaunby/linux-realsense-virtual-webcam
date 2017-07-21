@@ -18,6 +18,14 @@ I'm presently using the Intel R200 camera on a Dell XPS13 running Ubuntu 16.10
 
 Use, e.g. "$ gst-inspect videoflip" shell command to see available options.
 
+
+# Using as webcam with browsers
+
+This creates a dummy camera that works with appear.in
+
+gst-launch-1.0 videotestsrc ! tee ! v4l2sink device=/dev/video9
+
+
 ## Getting started
 
 If you haven't already, build and install the librealsense examples and check
