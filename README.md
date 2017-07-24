@@ -25,6 +25,17 @@ This creates a dummy camera that works with appear.in
 
 gst-launch-1.0 videotestsrc ! tee ! v4l2sink device=/dev/video9
 
+or
+
+gst-launch-1.0 videotestsrc is-live=true ! "video/x-raw, format=YUY2" ! tee ! v4l2sink device=/dev/video9
+
+May need to set capabilities
+
+$ v4l2loopback-ctl set-caps "video/x-raw,format=YUY2, width=1280, height=960" /dev/video9
+
+Also, this seems necessary when reading from one device and pipeing to another
+
+$ gst-launch-1.0 v4l2src device=/dev/video9 io-mode=rw ! tee ! v4l2sink device=/dev/video8
 
 ## Getting started
 

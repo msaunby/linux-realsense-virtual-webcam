@@ -136,15 +136,11 @@ g_object_set (G_OBJECT (appsrc), "caps",
 // NB set glReadPixels to match.  See https://www.khronos.org/registry/OpenGL-Refpages/es2.0/xhtml/glReadPixels.xml
 #endif
 
-  g_object_set (G_OBJECT (conv), "video/x-raw,format", "YUY2", NULL);
+  //g_object_set (G_OBJECT (conv), "video/x-raw,format", "YUY2", NULL);
+
   g_object_set (G_OBJECT (flip), "method", 2, NULL);
-  //g_object_set (G_OBJECT (flip), "method", "vertical-flip", NULL);
-  /*g_object_set (G_OBJECT (flip), "caps",
-      gst_caps_new_simple ("video/x-raw",
-             "method", G_TYPE_INT, 1,
-             NULL), NULL);
-             */
-  g_object_set (G_OBJECT (videosink), "device", "/dev/video9", NULL);
+
+  g_object_set (G_OBJECT (videosink), "device", "/dev/video9", "flags", 1, NULL);
 
   gst_bin_add_many (GST_BIN (pipeline), appsrc, conv, flip, tee, videosink, NULL);
   gst_element_link_many (appsrc, conv, flip, tee, videosink, NULL);
