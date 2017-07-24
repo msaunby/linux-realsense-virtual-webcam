@@ -25,6 +25,8 @@
 #define GLFW_INCLUDE_GLU
 #include <GLFW/glfw3.h>
 
+#define VID_WID 1280
+#define VID_HEI 960
 
 double yaw, pitch, lastX, lastY; int ml;
 static void on_mouse_button(GLFWwindow * win, int button, int action, int mods)
@@ -44,7 +46,7 @@ static void on_cursor_pos(GLFWwindow * win, double x, double y)
 }
 
 /* Function calls to librealsense may raise errors of type rs_error */
-rs_error * e = 0;
+rs_error *e = 0;
 void check_error()
 {
     if(e)
@@ -66,7 +68,7 @@ static void prepare_buffer(GstAppSrc* appsrc, char *pixels) {
   if (!want) return;
   want = 0;
 
-  size = 640 * 480 * 8;
+  size = VID_WID * VID_HEI * 8;
 
   buffer = gst_buffer_new_wrapped_full( 0, (gpointer)pixels, size, 0, size, NULL, NULL );
 
@@ -115,8 +117,8 @@ gint main(gint argc, gchar**argv)
   g_object_set (G_OBJECT (appsrc), "caps",
   		gst_caps_new_simple ("video/x-raw",
 				     "format", G_TYPE_STRING, "RGB16",
-				     "width", G_TYPE_INT, 640,
-				     "height", G_TYPE_INT, 480,
+				     "width", G_TYPE_INT, VID_WID,
+				     "height", G_TYPE_INT, VID_HEI,
 				     "framerate", GST_TYPE_FRACTION, 30, 1,
 				     NULL), NULL);
 #else
@@ -156,7 +158,7 @@ g_object_set (G_OBJECT (appsrc), "caps",
   /* play */
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
 
-  pixel_data = malloc(8*640*480);
+  pixel_data = malloc(8*VID_WID*VID_HEI);
 
   // Now the RealSense code.
 
@@ -193,7 +195,7 @@ g_object_set (G_OBJECT (appsrc), "caps",
 
     /* Open a GLFW window to display our output */
     glfwInit();
-    GLFWwindow * win = glfwCreateWindow(640, 480, "librealsense tutorial #3", NULL, NULL);
+    GLFWwindow * win = glfwCreateWindow(VID_WID, VID_HEI, "PointCloudCam", NULL, NULL);
     glfwSetCursorPosCallback(win, on_cursor_pos);
     glfwSetMouseButtonCallback(win, on_mouse_button);
     glfwMakeContextCurrent(win);
@@ -238,9 +240,12 @@ g_object_set (G_OBJECT (appsrc), "caps",
         //glScalef(1,-1,1);
 
         /* We will render our depth data as a set of points in 3D space */
-        glPointSize(2);
+        glPointSize(1.5);
         glEnable(GL_DEPTH_TEST);
         glBegin(GL_POINTS);
+
+        int x_offset[] = {1,0,-1,0,1,-1,-1,1};
+        int y_offset[] = {0,1,0,-1,1,1,-1,-1};
 
         int dx, dy;
         for(dy=0; dy<depth_intrin.height; ++dy)
@@ -248,11 +253,21 @@ g_object_set (G_OBJECT (appsrc), "caps",
             for(dx=0; dx<depth_intrin.width; ++dx)
             {
                 /* Retrieve the 16-bit depth value and map it into a depth in meters */
-                uint16_t depth_value = depth_image[dy * depth_intrin.width + dx];
+                uint16_t depth_value = 0;
+                uint16_t offi;
+                for(offi=0; offi<8; offi++){
+                   depth_value = depth_image[(dy + y_offset[offi]) * depth_intrin.width + (dx + x_offset[offi])];
+                   if(depth_value != 0) break;
+                }
                 float depth_in_meters = depth_value * scale;
 
                 /* Skip over pixels with a depth value of zero, which is used to indicate no data */
-                if(depth_value == 0) continue;
+                if(depth_value == 0)
+                {
+                  //depth_value = prev_depth_value;
+                  //float depth_in_meters = depth_value * scale;
+                  continue;
+                }
 
                 /* Map from pixel coordinates in the depth image to pixel coordinates in the color image */
                 float depth_pixel[2] = {(float)dx, (float)dy};
@@ -261,11 +276,11 @@ g_object_set (G_OBJECT (appsrc), "caps",
                 rs_transform_point_to_point(color_point, &depth_to_color, depth_point);
                 rs_project_point_to_pixel(color_pixel, &color_intrin, color_point);
 
-                /* Use the color from the nearest color pixel, or pure white if this point falls outside the color image */
+                /* Use the color from the nearest color pixel, or black if this point falls outside the color image */
                 const int cx = (int)roundf(color_pixel[0]), cy = (int)roundf(color_pixel[1]);
                 if(cx < 0 || cy < 0 || cx >= color_intrin.width || cy >= color_intrin.height)
                 {
-                    glColor3ub(255, 255, 255);
+                    glColor3ub(0, 0, 0);
                 }
                 else
                 {
@@ -278,7 +293,7 @@ g_object_set (G_OBJECT (appsrc), "caps",
         }
         glEnd();
         glReadBuffer(GL_FRONT);
-        glReadPixels(0, 0, 640, 480, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, pixel_data);
+        glReadPixels(0, 0, VID_WID, VID_HEI, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, pixel_data);
         g_main_context_iteration(g_main_context_default(),FALSE);
         glfwSwapBuffers(win);
     }

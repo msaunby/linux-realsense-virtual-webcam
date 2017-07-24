@@ -18,7 +18,6 @@ I'm presently using the Intel R200 camera on a Dell XPS13 running Ubuntu 16.10
 
 Use, e.g. "$ gst-inspect videoflip" shell command to see available options.
 
-
 # Using as webcam with browsers
 
 This creates a dummy camera that works with appear.in
@@ -36,6 +35,12 @@ $ v4l2loopback-ctl set-caps "video/x-raw,format=YUY2, width=1280, height=960" /d
 Also, this seems necessary when reading from one device and pipeing to another
 
 $ gst-launch-1.0 v4l2src device=/dev/video9 io-mode=rw ! tee ! v4l2sink device=/dev/video8
+
+# Other tools and libraries
+
+Point Cloud Library http://pointclouds.org/
+
+Mesh Lab http://www.meshlab.net/
 
 ## Getting started
 
